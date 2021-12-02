@@ -19,6 +19,8 @@ use OCP\IL10N;
 use OCA\DAV\CalDAV\CalDavBackend;
 use Sabre\DAV\Exception\BadRequest;
 use Psr\Log\LoggerInterface;
+use OCP\BackgroundJob\IJobList;
+use OCA\Google\BackgroundJob\ImportCalendarJob;
 
 require_once __DIR__ . '/../../vendor/autoload.php';
 use Ortic\ColorConverter\Color;
@@ -43,6 +45,10 @@ class GoogleCalendarAPIService {
 	 */
 	private $caldavBackend;
 	/**
+	 * @var IJobList
+	 */
+	private $jobList;
+	/**
 	 * @var GoogleAPIService
 	 */
 	private $googleApiService;
@@ -54,11 +60,13 @@ class GoogleCalendarAPIService {
 								LoggerInterface $logger,
 								IL10N $l10n,
 								CalDavBackend $caldavBackend,
+								IJobList $jobList,
 								GoogleAPIService $googleApiService) {
 		$this->appName = $appName;
 		$this->logger = $logger;
 		$this->l10n = $l10n;
 		$this->caldavBackend = $caldavBackend;
+		$this->jobList = $jobList;
 		$this->googleApiService = $googleApiService;
 	}
 
@@ -292,6 +300,26 @@ class GoogleCalendarAPIService {
 			'nbAdded' => $nbAdded,
 			'calName' => $newCalName,
 		];
+	}
+
+	/**
+	 * Register a calendar to periodically be synced and kept up to date in the
+	 * background
+	 * @param string $accessToken
+	 * @param string $userId
+	 * @param string $calId
+	 * @param string $calName
+	 * @param ?string $color
+	 * @return array
+	 */
+	public function registerSyncCalendar(string $accessToken, string $userId, string $calId, string $calName, ?string $color = null): void {
+		$this->jobList->add(ImportCalendarJob::class, [
+			'access_token' => $accessToken,
+			'user_id' => $userId,
+			'cal_id' => $calId,
+			'cal_name' => $calName,
+			'color' => $color,
+		]);
 	}
 
 	/**

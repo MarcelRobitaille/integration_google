@@ -67,7 +67,7 @@
 				<div v-if="calendars.length > 0"
 					id="google-calendars">
 					<h3>{{ t('integration_google', 'Calendars') }}</h3>
-					<div v-for="cal in calendars" :key="cal.id" class="google-grid-form">
+					<div v-for="cal in calendars" :key="cal.id" class="google-calendar-form">
 						<label>
 							<AppNavigationIconBullet slot="icon" :color="getCalendarColor(cal)" />
 							<span>{{ getCalendarLabel(cal) }}</span>
@@ -77,6 +77,11 @@
 							@click="onCalendarImport(cal)">
 							<span class="icon icon-calendar-dark" />
 							{{ t('integration_google', 'Import calendar') }}
+						</button>
+						<button
+							@click="onCalendarSync(cal)">
+							<span class="icon icon-calendar-dark" />
+							{{ t('integration_google', 'Sync calendar') }}
 						</button>
 					</div>
 					<br>
@@ -621,6 +626,29 @@ export default {
 					this.$set(this.importingCalendar, calId, false)
 				})
 		},
+		onCalendarSync(cal) {
+			const calId = cal.id
+			const req = {
+				params: {
+					calId,
+					calName: this.getCalendarLabel(cal),
+					color: cal.backgroundColor || '#0082c9',
+				},
+			}
+			const url = generateUrl('/apps/integration_google/sync-calendar')
+			axios.get(url, req)
+				.then((response) => {
+					showSuccess(
+						this.n('integration_google', 'Successfully registered background job', 'Successfully registered background job', 1)
+					)
+				})
+				.catch((error) => {
+					showError(
+						t('integration_google', 'Failed to register background job')
+						+ ': ' + error.response?.request?.responseText
+					)
+				})
+		},
 		onImportPhotos() {
 			const req = {
 				params: {
@@ -794,6 +822,22 @@ export default {
 	max-width: 600px;
 	display: grid;
 	grid-template: 1fr / 1fr 1fr;
+	button .icon {
+		margin-bottom: -1px;
+	}
+}
+
+.google-calendar-form label {
+	line-height: 38px;
+	.app-navigation-entry__icon-bullet {
+		padding: 0;
+		display: inline-block;
+	}
+}
+
+.google-calendar-form {
+	display: grid;
+	grid-template: 1fr / 1fr 1fr 1fr;
 	button .icon {
 		margin-bottom: -1px;
 	}
