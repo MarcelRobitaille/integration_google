@@ -11,6 +11,7 @@
 
 namespace OCA\Google\Service;
 
+use Ds\Set;
 use Datetime;
 use DateTimeZone;
 use Exception;
@@ -175,14 +176,15 @@ class GoogleCalendarAPIService {
 				$ncCalId = $this->caldavBackend->createCalendar('principals/users/' . $userId, $newCalName, $params);
 			}
 
-			// Delete old calendar events
-			// Only trust new ones
-			// They could have been deleted in Google Calendar or moved,
-			// in which case they would be doubled
-			// TODO: This is not very efficient, really we should check what's in Google
-			// Calendar and only delete the stuff that was deleted there
+			// Use a set to track which calendar events have been visited
+			// If an event already exists in NC, skip importing it
+			// If this set has anything left after importing, then those events have
+			// been deleted from Google Calendar and must be deleted from NC as well
+			// The URI has the Google Calendar etag, which is supposed to represent an
+			// exact version, so this should also handle events that get modified
+			$unseenURIs = new Set();
 			foreach ($this->caldavBackend->getCalendarObjects($ncCalId) as $e) {
-				$this->caldavBackend->deleteCalendarObject($ncCalId, $e['uri'], $this->caldavBackend::CALENDAR_TYPE_CALENDAR, true);
+				$unseenURIs->add($e['uri']);
 			}
 
 			// get color list
@@ -203,6 +205,14 @@ class GoogleCalendarAPIService {
 					. 'BEGIN:VEVENT' . "\n";
 
 				$objectUri = $e['id'] . '-' . $e['etag'];
+
+				// If this event exists in NC, remove it from the set of events to be
+				// deleted and skip importing it
+				if ($unseenURIs->contains($objectUri)) {
+					$unseenURIs->remove($objectUri);
+					continue;
+				}
+
 				$calData .= 'UID:' . $ncCalId . '-' . $objectUri . "\n";
 				if (isset($e['colorId'], $eventColors[$e['colorId']], $eventColors[$e['colorId']]['background'])) {
 					$closestCssColor = $this->getClosestCssColor($eventColors[$e['colorId']]['background']);
@@ -303,6 +313,12 @@ class GoogleCalendarAPIService {
 				} catch (Exception | Throwable $ex) {
 					$this->logger->warning('Error when creating calendar event "' . '<redacted>' . '" ' . $ex->getMessage(), ['app' => $this->appName]);
 				}
+			}
+
+			// Anything still unseen was deleted in Google Calendar
+			// Reflect that here
+			foreach ($unseenURIs as $uri) {
+				$this->caldavBackend->deleteCalendarObject($ncCalId, $uri, $this->caldavBackend::CALENDAR_TYPE_CALENDAR, true);
 			}
 
 			$this->logger->debug('Elapsed time is: ' . (microtime(true) - $startTime) . ' seconds', ['app' => $this->appName]);
