@@ -151,6 +151,8 @@ class GoogleCalendarAPIService {
 	 * @return array
 	 */
 	public function importCalendar(string $accessToken, string $userId, string $calId, string $calName, ?string $color = null): array {
+		$startTime = microtime(true);
+		$this->logger->debug("Starting calendar import of $calId", ['app' => $this->appName]);
 
 		$lockFile = sys_get_temp_dir() .
 			"/nextcloud_integration_google_calendar_import_$calId.lock";
@@ -302,6 +304,8 @@ class GoogleCalendarAPIService {
 					$this->logger->warning('Error when creating calendar event "' . '<redacted>' . '" ' . $ex->getMessage(), ['app' => $this->appName]);
 				}
 			}
+
+			$this->logger->debug('Elapsed time is: ' . (microtime(true) - $startTime) . ' seconds', ['app' => $this->appName]);
 
 			$eventGeneratorReturn = $events->getReturn();
 			if (isset($eventGeneratorReturn['error'])) {
